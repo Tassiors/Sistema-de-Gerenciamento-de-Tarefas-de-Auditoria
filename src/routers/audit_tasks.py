@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..resources.database import get_app_db_session
+from ..auth.auth import require_admin
 from ..services.audit_service import (
     import_ecgu_spreadsheet,
     list_governance_units,
@@ -34,6 +35,7 @@ class AreaAssignmentPayload(BaseModel):
 )
 async def import_audit_tasks(
     file: UploadFile = File(...),
+    current_user: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_app_db_session),
 ):
     if not file.filename.lower().endswith((".xlsx", ".xls")):

@@ -21,6 +21,8 @@ JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key-change-in-production")
 JWT_EXP_HOURS = int(os.getenv("JWT_EXP_HOURS", 24))
 REFRESH_TOKEN_EXP_DAYS = int(os.getenv("REFRESH_TOKEN_EXP_DAYS", 30))
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
+ADMIN_GROUP = "GLO-SEC-HCPE-SETISD"
+ADMIN_USERS = {"tassio.silva", "renata.albuquerque.1", "admin"}
 
 # --- Interface e Implementações de Provedor de Autenticação ---
 
@@ -38,20 +40,33 @@ class MockAuthProvider(AuthProviderInterface):
     """Provedor de autenticação mock para desenvolvimento offline."""
     def authenticate_user(self, username, password) -> dict:
         print("--- Using Mock Authentication ---")
-        if username == "admin" and password == "admin":
-            print(f"Authentication successful for mock user: {username}")
-            # O nome do grupo que o frontend usa para identificar administradores
-            admin_group = "GLO-SEC-HCPE-SETISD"
+        clean_user = (username or "").strip().lower()
+        admin_group = "GLO-SEC-HCPE-SETISD"
+        admin_logins = {"admin", "tassio.silva", "renata.albuquerque.1"}
+        if clean_user in admin_logins and password in ("admin", "123456"):
+            display = (
+                "Tássio Silva" if clean_user == "tassio.silva" else
+                "Renata Albuquerque" if clean_user == "renata.albuquerque.1" else
+                "Administrador do Sistema"
+            )
+            print(f"Authentication successful for mock admin user: {clean_user}")
             return {
-                "username": "admin",
-                "displayName": ["Mock Admin"],
+                "username": clean_user,
+                "displayName": [display],
                 "groups": [admin_group, "Users"],
-                "email": "admin@mock.com"
+                "email": f"{clean_user}@ebserh.gov.br"
+            }
+        elif clean_user == "user" and password == "user":
+            return {
+                "username": "user",
+                "displayName": ["Usuário Comum"],
+                "groups": ["Users"],
+                "email": "user@ebserh.gov.br"
             }
         else:
             print(f"Authentication failed for mock user: {username}")
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid mock credentials"
             )
 
@@ -192,6 +207,8 @@ class ActiveDirectoryAuthProvider(AuthProviderInterface):
                         match = re.match(r'CN=([^,]+)', group_dn)
                         if match:
                             groups.append(match.group(1))
+                    if username.lower() in ADMIN_USERS and ADMIN_GROUP not in groups:
+                        groups.append(ADMIN_GROUP)
                     user_info['groups'] = groups
                 elif attr_name in allowed_attrs:
                     # Garante que o valor seja SEMPRE uma lista de strings para o frontend
@@ -332,3 +349,13 @@ class AuthHandler:
 
 # Instância única que será usada em toda a aplicação
 auth_handler = AuthHandler()
+
+async def require_admin(current_user: dict = Depends(auth_handler.decode_token)):
+    username = (current_user.get("username") or current_user.get("sub", "")).lower()
+    groups = current_user.get("groups", [])
+    if username in ADMIN_USERS or ADMIN_GROUP in groups:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Acesso restrito a administradores do sistema."
+    )

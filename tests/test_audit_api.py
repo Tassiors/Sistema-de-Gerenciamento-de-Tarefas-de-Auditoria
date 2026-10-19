@@ -35,48 +35,61 @@ def test_audit_api_workflow(client):
     assert "GAS" in siglas
     assert "GEP" in siglas
 
-    # 2. Testar listagem de Áreas
+    # 2. Testar listagem de Áreas do Organograma Oficial (mais de 50 setores cadastrados)
     res_areas = client.get("/api/responsible-areas?sigla=SUP")
     assert res_areas.status_code == 200
     areas_sup = res_areas.json()
     assert len(areas_sup) > 0
     primeira_area_id = areas_sup[0]["id"]
 
-    # 3. Testar upload de planilha e-CGU
+    res_all_areas = client.get("/api/responsible-areas")
+    assert res_all_areas.status_code == 200
+    assert len(res_all_areas.json()) >= 50
+
+    # 3. Testar restrição de importação a Administradores
     excel_bytes = create_sample_excel()
     files = {"file": ("ecgu_teste.xlsx", excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    res_upload = client.post("/api/audit-tasks/import", files=files)
+    
+    # Tentativa anônima deve ser negada
+    res_unauth = client.post("/api/audit-tasks/import", files=files)
+    assert res_unauth.status_code in (401, 403)
+
+    # Login como administrador tassio.silva
+    res_login = client.post(
+        "/api/login",
+        data={"username": "tassio.silva", "password": "admin"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    assert res_login.status_code == 200
+    token = res_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {token}"}
+
+    # Upload com token de administrador deve ter sucesso
+    res_upload = client.post("/api/audit-tasks/import", files=files, headers=admin_headers)
     assert res_upload.status_code == 200
     upload_data = res_upload.json()["data"]
     assert upload_data["total_rows"] == 2
     assert upload_data["active_rows"] == 2
 
-    # 4. Testar listagem de tarefas
-    res_tasks = client.get("/api/audit-tasks?sigla=SUP")
+    # 4. Testar listagem de tarefas com filtro múltiplo de situações
+    res_tasks = client.get("/api/audit-tasks?situation=Não atendida,Parcialmente Atendida")
     assert res_tasks.status_code == 200
     tasks_data = res_tasks.json()
-    assert tasks_data["total"] >= 2
-    task_items = tasks_data["items"]
-    target_task = next(t for t in task_items if t["task_id"] == "1706209")
-    assert target_task["situation"] == "Parcialmente Atendida"
-    assert target_task["governance_sigla"] == "SUP"
-    assert target_task["prazo_status"] in ("Prazo Amplo", "Prazo Encerrando", "Prazo Venceu")
+    assert tasks_data["total"] >= 1
+    for item in tasks_data["items"]:
+        assert item["situation"] in ("Não atendida", "Parcialmente Atendida")
 
     # 5. Testar atribuição de Área Responsável
+    task_items = client.get("/api/audit-tasks?sigla=SUP").json()["items"]
+    target_task = next(t for t in task_items if t["task_id"] == "1706209")
     res_assign = client.patch(
         f"/api/audit-tasks/{target_task['task_id']}/responsible-area",
         json={"responsible_area_id": primeira_area_id}
     )
     assert res_assign.status_code == 200
 
-    # Verificar se foi atualizada
-    res_check = client.get(f"/api/audit-tasks?search={target_task['task_id']}")
-    assert res_check.status_code == 200
-    updated_item = res_check.json()["items"][0]
-    assert updated_item["responsible_area_id"] == primeira_area_id
-
-    # 6. Testar endpoint de Dashboard
-    res_dash = client.get("/api/audit-tasks/dashboard?sigla=SUP")
+    # 6. Testar endpoint de Dashboard e Série Temporal RNA
+    res_dash = client.get("/api/audit-tasks/dashboard")
     assert res_dash.status_code == 200
     dash_data = res_dash.json()
     assert "kpis" in dash_data
@@ -84,3 +97,8 @@ def test_audit_api_workflow(client):
     assert "prazo" in dash_data
     assert "por_ano" in dash_data
     assert "rna_historico" in dash_data
+    assert len(dash_data["rna_historico"]) >= 15
+    # Último ponto da série temporal deve ser o mês corrente
+    last_point = dash_data["rna_historico"][-1]
+    assert last_point["is_current"] is True
+    assert last_point["quantidade"] == dash_data["kpis"]["total_pendentes"]

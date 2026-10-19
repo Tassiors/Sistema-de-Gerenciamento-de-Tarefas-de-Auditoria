@@ -46,6 +46,7 @@
           </router-link>
 
           <router-link 
+            v-if="authStore.isAdmin" 
             to="/importar" 
             :title="isCollapsed ? 'Importar Planilha' : ''"
             :class="[isCollapsed ? 'justify-center px-2' : 'px-4']"
@@ -56,7 +57,7 @@
           </router-link>
           
           <router-link 
-            v-if="authStore.isAuthenticated" 
+            v-if="authStore.isAdmin" 
             to="/configuracoes" 
             :title="isCollapsed ? 'Configurações' : ''"
             :class="[isCollapsed ? 'justify-center px-2' : 'px-4']"

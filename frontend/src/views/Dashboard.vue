@@ -343,16 +343,34 @@
         </div>
 
         <!-- Filtro Situação -->
-        <select
-          v-model="filters.situation"
-          @change="fetchTasks"
-          class="text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Todas as Situações</option>
-          <option value="Não atendida">Não atendida</option>
-          <option value="Parcialmente Atendida">Parcialmente Atendida</option>
-          <option value="Concluída">Concluída</option>
-        </select>
+                <!-- Filtro de Situao de Mltipla Escolha -->
+        <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 p-1 rounded-xl">
+          <span class="text-[11px] font-bold text-gray-500 px-2">Situao:</span>
+          <button
+            type="button"
+            v-for="sit in availableSituations"
+            :key="sit"
+            @click="toggleSituationFilter(sit)"
+            :class="[
+              selectedSituations.includes(sit)
+                ? (sit === 'No atendida' ? 'bg-rose-600 text-white shadow-xs font-semibold' :
+                   sit === 'Parcialmente Atendida' ? 'bg-amber-500 text-white shadow-xs font-semibold' :
+                   'bg-emerald-600 text-white shadow-xs font-semibold')
+                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+            ]"
+            class="px-2.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5 select-none cursor-pointer"
+          >
+            <span
+              class="w-2 h-2 rounded-full"
+              :class="[
+                sit === 'No atendida' ? (selectedSituations.includes(sit) ? 'bg-white' : 'bg-rose-500') :
+                sit === 'Parcialmente Atendida' ? (selectedSituations.includes(sit) ? 'bg-white' : 'bg-amber-500') :
+                (selectedSituations.includes(sit) ? 'bg-white' : 'bg-emerald-600')
+              ]"
+            ></span>
+            {{ sit }}
+          </button>
+        </div>
 
         <!-- Filtro Prazo -->
         <select
@@ -520,20 +538,27 @@
             <p class="text-gray-700 mt-1 line-clamp-2">{{ selectedTaskForAssign.title }}</p>
           </div>
 
-          <div>
-            <label class="block font-bold text-gray-700 mb-1">Selecione o Setor / Área Responsável:</label>
-            <select
-              v-model="modalSelectedAreaId"
-              class="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-            >
-              <option :value="null">-- Nenhum (Remover Atribuição) --</option>
-              <optgroup v-for="gov in allGovUnits" :key="gov.id" :label="gov.sigla + ' - ' + gov.nome">
-                <option v-for="area in gov.areas" :key="area.id" :value="area.id">
-                  {{ area.nome }}
-                </option>
-              </optgroup>
-            </select>
-          </div>
+                <div>
+        <label class="block font-bold text-gray-700 mb-1">Buscar Unidade do Organograma HC-UFPE:</label>
+        <input
+          v-model="modalAreaSearch"
+          type="text"
+          placeholder="Filtrar unidade (ex: SETISD, Compras, Qualidade)..."
+          class="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 bg-gray-50 text-gray-800 focus:ring-2 focus:ring-blue-500"
+        />
+        <label class="block font-bold text-gray-700 mb-1">Selecione a Unidade Organizacional:</label>
+        <select
+          v-model="modalSelectedAreaId"
+          class="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+        >
+          <option :value="null">-- Nenhuma (Remover Atribuio) --</option>
+          <optgroup v-for="gov in filteredGovUnitsForModal" :key="gov.id" :label="gov.sigla + ' - ' + gov.nome">
+            <option v-for="area in gov.areas" :key="area.id" :value="area.id">
+              {{ area.nome }}
+            </option>
+          </optgroup>
+        </select>
+      </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-3 border-t">
@@ -594,6 +619,33 @@ const filters = ref({
 
 const selectedTaskForAssign = ref<AuditTaskItem | null>(null);
 const modalSelectedAreaId = ref<number | null>(null);
+const availableSituations = ['No atendida', 'Parcialmente Atendida', 'Atendida'];
+const selectedSituations = ref<string[]>(['No atendida', 'Parcialmente Atendida']);
+const modalAreaSearch = ref('');
+
+const filteredGovUnitsForModal = computed(() => {
+  if (!modalAreaSearch.value.trim()) {
+    return allGovUnits.value;
+  }
+  const term = modalAreaSearch.value.toLowerCase().trim();
+  return allGovUnits.value
+    .map(gov => ({
+      ...gov,
+      areas: gov.areas.filter(a => a.nome.toLowerCase().includes(term) || gov.sigla.toLowerCase().includes(term))
+    }))
+    .filter(gov => gov.areas.length > 0);
+});
+
+function toggleSituationFilter(sit: string) {
+  if (selectedSituations.value.includes(sit)) {
+    selectedSituations.value = selectedSituations.value.filter(s => s !== sit);
+  } else {
+    selectedSituations.value.push(sit);
+  }
+  currentPage.value = 1;
+  fetchTasks();
+}
+
 
 let debounceTimeout: any = null;
 
@@ -653,7 +705,7 @@ async function fetchTasks() {
       page_size: 25,
       search: filters.value.search || undefined,
       sigla: sigla,
-      situation: filters.value.situation || undefined,
+      situation: selectedSituations.value.length > 0 ? selectedSituations.value.join(',') : undefined,
       prazo: filters.value.prazo || undefined,
       unassigned: filters.value.unassigned ? true : undefined,
     });
@@ -674,6 +726,7 @@ function debouncedFetchTasks() {
 }
 
 function resetFilters() {
+  selectedSituations.value = ['No atendida', 'Parcialmente Atendida'];
   filters.value = {
     search: '',
     situation: '',
@@ -736,7 +789,9 @@ function calculateRnaPoints(width: number, height: number) {
     const x = paddingX + i * stepX;
     const normY = (d.quantidade - minVal) / (maxVal - minVal);
     const y = height - normY * (height - 40) - 10;
-    const mesCurto = d.label.split(' de ')[0].substring(0, 3) + '/' + d.label.split(' de ')[1]?.substring(2);
+    const mesCurto = d.label.includes(' de ')
+      ? d.label.split(' de ')[0].substring(0, 3) + '/' + d.label.split(' de ')[1]?.substring(2)
+      : d.label;
     return { x, y, valor: d.quantidade, mesCurto };
   });
 }

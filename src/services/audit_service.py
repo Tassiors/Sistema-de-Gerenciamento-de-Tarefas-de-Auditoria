@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, update
 from sqlalchemy.orm import selectinload
 
-from ..models import AuditTask, GovernanceUnit, ResponsibleArea, ImportBatch
+from ..models import AuditTask, GovernanceUnit, ResponsibleArea, ImportBatch, RnaMonthlySnapshot
 from .ecgu_parser import parse_ecgu_workbook
 
 # Série histórica oficial de Recomendações Não Atendidas (RNA)
@@ -227,7 +227,12 @@ async def get_audit_tasks(
         stmt = stmt.join(AuditTask.governance_unit).where(GovernanceUnit.sigla == sigla.upper())
 
     if situation:
-        stmt = stmt.where(AuditTask.situation == situation)
+        if isinstance(situation, str):
+            situations_list = [s.strip() for s in situation.split(",") if s.strip()]
+        else:
+            situations_list = list(situation)
+        if situations_list:
+            stmt = stmt.where(AuditTask.situation.in_(situations_list))
 
     if unassigned is True:
         stmt = stmt.where(AuditTask.responsible_area_id.is_(None))
@@ -329,6 +334,58 @@ async def get_dashboard_metrics(
             ano = t.start_date.year if t.start_date else "Sem Ano"
             ano_dist[str(ano)] = ano_dist.get(str(ano), 0) + 1
 
+    # Série temporal de Recomendações Não Atendidas (RNA a partir de MAIO/24)
+    # Regra: Total do dia atual para o mês corrente; ao transicionar de mês,
+    # o total do mês anterior é congelado com o total no seu último dia.
+    snap_stmt = select(RnaMonthlySnapshot).order_by(RnaMonthlySnapshot.year_month.asc())
+    snap_res = await session.execute(snap_stmt)
+    snapshots = list(snap_res.scalars().all())
+
+    current_ym = f"{today.year}-{today.month:02d}"
+    month_labels = {
+        1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Maio", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+    }
+    current_label = f"{month_labels.get(today.month, str(today.month))}/{str(today.year)[2:]}"
+
+    # Congelar meses anteriores que ainda não estavam fechados
+    for s in snapshots:
+        if s.year_month < current_ym and not s.is_closed:
+            s.is_closed = True
+
+    # Atualizar ou inserir snapshot do mês corrente com total do dia atual
+    current_snap = next((s for s in snapshots if s.year_month == current_ym), None)
+    if not sigla:
+        if current_snap:
+            current_snap.count_rna = pendentes_count
+            current_snap.snapshot_date = today
+            current_snap.is_closed = False
+        else:
+            current_snap = RnaMonthlySnapshot(
+                year_month=current_ym,
+                label=current_label,
+                count_rna=pendentes_count,
+                snapshot_date=today,
+                is_closed=False
+            )
+            session.add(current_snap)
+            snapshots.append(current_snap)
+        await session.commit()
+
+    # Formatar série histórica para exibição
+    rna_series = []
+    for s in snapshots:
+        val = s.count_rna
+        if sigla and s.year_month == current_ym:
+            val = pendentes_count
+
+        rna_series.append({
+            "mes": f"{s.year_month}-01",
+            "label": s.label,
+            "quantidade": val,
+            "is_current": (s.year_month == current_ym),
+        })
+
     return {
         "filter": sigla.upper() if sigla else "GERAL",
         "kpis": {
@@ -346,5 +403,5 @@ async def get_dashboard_metrics(
         "por_ano": [
             {"ano": k, "quantidade": v} for k, v in sorted(ano_dist.items())
         ],
-        "rna_historico": RNA_HISTORICAL_DATA,
+        "rna_historico": rna_series,
     }

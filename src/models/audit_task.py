@@ -135,3 +135,17 @@ class AuditTask(Base):
     governance_unit = relationship("GovernanceUnit", back_populates="audit_tasks")
     responsible_area = relationship("ResponsibleArea", back_populates="audit_tasks")
     import_batch = relationship("ImportBatch", back_populates="audit_tasks")
+
+
+class RnaMonthlySnapshot(Base):
+    """Série temporal mensal de Recomendações Não Atendidas (RNA)."""
+    __tablename__ = "rna_monthly_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    year_month = Column(String(7), unique=True, nullable=False, index=True)  # ex: '2024-05'
+    label = Column(String(20), nullable=False)  # ex: 'Maio/24'
+    count_rna = Column(Integer, nullable=False)
+    snapshot_date = Column(Date, nullable=False)
+    is_closed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -15,6 +15,7 @@ const routes = [
     path: '/importar',
     name: 'Importacao',
     component: Importacao,
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
     path: '/login',
@@ -26,7 +27,7 @@ const routes = [
     path: '/configuracoes',
     name: 'Configuracoes',
     component: Configuracoes,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
 ];
 
@@ -41,6 +42,8 @@ router.beforeEach((to, _from, next: NavigationGuardNext) => {
   const authStore = useAuthStore();
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login' });
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    next({ name: 'Dashboard' });
   } else {
     next();
   }
