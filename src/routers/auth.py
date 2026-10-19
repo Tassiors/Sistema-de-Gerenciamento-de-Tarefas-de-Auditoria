@@ -27,6 +27,38 @@ async def login(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {e}")
 
+    if not user or not user.get("username"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciais inválidas. Verifique seu usuário e senha."
+        )
+
+    # Regra: Apenas gestores pré-cadastrados na base de dados (ou administradores) têm acesso ao sistema
+    clean_username = user["username"].strip().lower()
+    ADMIN_USERS = {"tassio.silva", "renata.albuquerque.1", "admin"}
+    if clean_username not in ADMIN_USERS:
+        from ..models import SystemManager
+        from sqlalchemy import select
+        mgr_stmt = select(SystemManager).where(SystemManager.username == clean_username, SystemManager.is_active == True)
+        mgr_res = await db.execute(mgr_stmt)
+        manager = mgr_res.scalar_one_or_none()
+        if not manager:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Acesso não autorizado. Usuário não cadastrado como gestor no sistema."
+            )
+        user["role"] = manager.role
+        user["manager_id"] = manager.id
+        if manager.role in ("ADMINISTRADOR", "SUPERINTENDENTE"):
+            groups = user.setdefault("groups", [])
+            if "GLO-SEC-HCPE-SETISD" not in groups:
+                groups.append("GLO-SEC-HCPE-SETISD")
+    else:
+        user["role"] = "ADMINISTRADOR"
+        groups = user.setdefault("groups", [])
+        if "GLO-SEC-HCPE-SETISD" not in groups:
+            groups.append("GLO-SEC-HCPE-SETISD")
+
     access_token_expires = timedelta(minutes=15) if remember_me else timedelta(hours=JWT_EXP_HOURS)
     access_token = auth_handler.create_access_token(
        data=user,

@@ -25,8 +25,14 @@ async def lifespan(app: FastAPI):
         print("WARNING: POSTGRES_DSN not found. Skipping AGHU DB initialization.")
 
     # Initialize App DB Manager (SQLite) and store in app.state
-    app_dsn = os.getenv("SQLITE_DSN") or os.getenv("APP_DB_URL") or "sqlite+aiosqlite:///data/app.db"
-    os.makedirs("data", exist_ok=True)
+    raw_dsn = os.getenv("SQLITE_DSN") or os.getenv("APP_DB_URL") or "sqlite+aiosqlite:///data/app.db"
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.makedirs(os.path.join(project_root, "data"), exist_ok=True)
+    if "sqlite" in raw_dsn and ("data/app.db" in raw_dsn or "data\\app.db" in raw_dsn):
+        abs_db = os.path.join(project_root, "data", "app.db").replace("\\", "/")
+        app_dsn = f"sqlite+aiosqlite:///{abs_db}"
+    else:
+        app_dsn = raw_dsn
     app.state.app_db = DatabaseManager(app_dsn)
     print(f"App SQLite connection pool initialized ({app_dsn}).")
 
@@ -109,12 +115,13 @@ if os.path.exists(assets_dir):
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Roteadores da API
-from .routers import paciente, auth, admin, health, audit_tasks
+from .routers import paciente, auth, admin, health, audit_tasks, managers
 app.include_router(health.router)
 app.include_router(paciente.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(audit_tasks.router)
+app.include_router(managers.router)
 
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):

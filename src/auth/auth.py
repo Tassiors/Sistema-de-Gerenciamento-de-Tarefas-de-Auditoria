@@ -43,17 +43,19 @@ class MockAuthProvider(AuthProviderInterface):
         clean_user = (username or "").strip().lower()
         admin_group = "GLO-SEC-HCPE-SETISD"
         admin_logins = {"admin", "tassio.silva", "renata.albuquerque.1"}
-        if clean_user in admin_logins and password in ("admin", "123456"):
+        if password in ("admin", "123456"):
+            is_adm = clean_user in admin_logins
             display = (
                 "Tássio Silva" if clean_user == "tassio.silva" else
                 "Renata Albuquerque" if clean_user == "renata.albuquerque.1" else
-                "Administrador do Sistema"
+                ("Administrador do Sistema" if clean_user == "admin" else clean_user.title())
             )
-            print(f"Authentication successful for mock admin user: {clean_user}")
+            groups = [admin_group, "Users"] if is_adm else ["Users"]
+            print(f"Authentication successful for mock user: {clean_user}")
             return {
                 "username": clean_user,
                 "displayName": [display],
-                "groups": [admin_group, "Users"],
+                "groups": groups,
                 "email": f"{clean_user}@ebserh.gov.br"
             }
         elif clean_user == "user" and password == "user":
@@ -63,7 +65,6 @@ class MockAuthProvider(AuthProviderInterface):
                 "groups": ["Users"],
                 "email": "user@ebserh.gov.br"
             }
-        else:
             print(f"Authentication failed for mock user: {username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

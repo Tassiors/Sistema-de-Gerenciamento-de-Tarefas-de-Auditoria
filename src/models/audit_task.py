@@ -16,7 +16,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from ..resources.database import Base
 
@@ -58,11 +58,15 @@ class ResponsibleArea(Base):
         index=True,
     )
     nome = Column(String(200), nullable=False, index=True)
+    sigla = Column(String(50), nullable=True)
+    level = Column(String(50), nullable=True)  # 'GERENCIA', 'DIVISAO', 'SETOR', 'UNIDADE'
+    parent_id = Column(Integer, ForeignKey("responsible_areas.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relacionamentos
     governance_unit = relationship("GovernanceUnit", back_populates="responsible_areas")
     audit_tasks = relationship("AuditTask", back_populates="responsible_area")
+    parent = relationship("ResponsibleArea", remote_side=[id], backref="children")
 
 
 class ImportBatch(Base):
@@ -149,3 +153,34 @@ class RnaMonthlySnapshot(Base):
     is_closed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SystemManager(Base):
+    """Gestor pré-cadastrado no sistema com controle de acesso e lotação."""
+    __tablename__ = "system_managers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)  # Login corporativo do AD
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    role = Column(String(50), nullable=False, default="GESTOR")  # 'ADMINISTRADOR', 'SUPERINTENDENTE', 'AUDITOR', 'GESTOR'
+    responsible_area_id = Column(Integer, ForeignKey("responsible_areas.id"), nullable=True, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    responsible_area = relationship("ResponsibleArea", foreign_keys=[responsible_area_id])
+    extra_units = relationship("ManagerExtraUnit", cascade="all, delete-orphan", back_populates="manager")
+
+
+class ManagerExtraUnit(Base):
+    """Matriz de Visibilidade: Unidades organizacionais extras concedidas ao gestor."""
+    __tablename__ = "manager_extra_units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manager_id = Column(Integer, ForeignKey("system_managers.id", ondelete="CASCADE"), nullable=False, index=True)
+    responsible_area_id = Column(Integer, ForeignKey("responsible_areas.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    manager = relationship("SystemManager", back_populates="extra_units")
+    responsible_area = relationship("ResponsibleArea")

@@ -2,16 +2,22 @@
 Rotas REST da API: Gestão de Tarefas de Auditoria e Governança
 ==============================================================
 Disponibiliza endpoints para importação de planilhas do e-CGU,
-atribuição de áreas responsáveis, listagem operacional e métricas analíticas.
+atribuição de áreas responsáveis, listagem operacional, detalhes de tarefa e métricas analíticas.
 """
 
-from typing import Optional
+from typing import Optional, Set
+from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
+from sqlalchemy.orm import selectinload
 
 from ..resources.database import get_app_db_session
-from ..auth.auth import require_admin
+from ..auth.auth import require_admin, auth_handler
+from ..models import AuditTask
+from ..services.visibility_service import get_user_visible_area_ids
 from ..services.audit_service import (
     import_ecgu_spreadsheet,
     list_governance_units,
@@ -19,9 +25,22 @@ from ..services.audit_service import (
     assign_responsible_area,
     get_audit_tasks,
     get_dashboard_metrics,
+    calculate_prazo_status,
 )
 
 router = APIRouter(prefix="/api", tags=["Tarefas de Auditoria e Governança"])
+
+security_optional = HTTPBearer(auto_error=False)
+
+
+async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)):
+    if not credentials:
+        return None
+    try:
+        payload = auth_handler.decode_token(credentials.credentials)
+        return payload
+    except Exception:
+        return None
 
 
 class AreaAssignmentPayload(BaseModel):
@@ -108,7 +127,7 @@ async def set_task_area(
 @router.get(
     "/audit-tasks",
     summary="Listagem Operacional de Tarefas",
-    description="Consulta paginada com busca textual e filtros dinâmicos por gerência, situação, prazo e tarefas sem área.",
+    description="Consulta paginada com busca textual, visibilidade hierárquica por gestor e filtros dinâmicos por gerência, situação, prazo e tarefas sem área.",
 )
 async def list_tasks(
     page: int = Query(1, ge=1, description="Número da página"),
@@ -116,11 +135,16 @@ async def list_tasks(
     search: Optional[str] = Query(None, description="Busca textual por ID, Título ou Monitoramento"),
     sigla: Optional[str] = Query(None, description="Filtrar por sigla da Gerência (SUP, GAD, GAS, GEP)"),
     situation: Optional[str] = Query(None, description="Filtrar por Situação (Não atendida, Parcialmente Atendida, Concluída)"),
-    prazo: Optional[str] = Query(None, description="Filtrar por Semáforo de Prazo (Prazo Amplo, Prazo Encerrando, Prazo Venceu)"),
+    prazo: Optional[str] = Query(None, description="Filtrar por Semáforo de Prazo"),
     unassigned: Optional[bool] = Query(None, description="Filtrar tarefas pendentes sem Área Responsável"),
     is_active: bool = Query(True, description="Listar apenas tarefas ativas"),
+    current_user: Optional[dict] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_app_db_session),
 ):
+    visible_area_ids = None
+    if current_user and current_user.get("username"):
+        visible_area_ids = await get_user_visible_area_ids(session, current_user["username"])
+
     return await get_audit_tasks(
         session=session,
         page=page,
@@ -131,6 +155,7 @@ async def list_tasks(
         prazo=prazo,
         unassigned=unassigned,
         is_active=is_active,
+        visible_area_ids=visible_area_ids,
     )
 
 
@@ -144,3 +169,51 @@ async def dashboard_metrics(
     session: AsyncSession = Depends(get_app_db_session),
 ):
     return await get_dashboard_metrics(session, sigla)
+
+
+@router.get(
+    "/audit-tasks/{task_id}",
+    summary="Detalhes Completos da Tarefa de Auditoria",
+    description="Retorna todas as informações da tarefa: descrição completa, monitoramento, providência adotada, datas e área responsável.",
+)
+async def get_task_detail(
+    task_id: str,
+    session: AsyncSession = Depends(get_app_db_session),
+):
+    stmt = (
+        select(AuditTask)
+        .options(
+            selectinload(AuditTask.governance_unit),
+            selectinload(AuditTask.responsible_area),
+        )
+        .where(or_(AuditTask.task_id == task_id, AuditTask.id == (int(task_id) if task_id.isdigit() else -1)))
+    )
+    res = await session.execute(stmt)
+    t = res.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Tarefa '{task_id}' não encontrada.")
+
+    today = date.today()
+    p_status, dias = calculate_prazo_status(t.deadline, today)
+
+    return {
+        "id": t.id,
+        "task_id": t.task_id,
+        "title": t.title,
+        "state": t.state,
+        "start_date": t.start_date.isoformat() if t.start_date else None,
+        "start_year": t.start_date.year if t.start_date else None,
+        "end_date": t.end_date.isoformat() if t.end_date else None,
+        "deadline": t.deadline.isoformat() if t.deadline else None,
+        "dias_restantes": dias,
+        "prazo_status": p_status,
+        "situation": t.situation,
+        "monitoring_text": t.monitoring_text,
+        "action_taken": t.action_taken,
+        "governance_sigla": t.governance_unit.sigla if t.governance_unit else None,
+        "governance_nome": t.governance_unit.nome if t.governance_unit else None,
+        "responsible_area_id": t.responsible_area_id,
+        "responsible_area_nome": t.responsible_area.nome if t.responsible_area else None,
+        "responsible_area_sigla": t.responsible_area.sigla if t.responsible_area else None,
+        "responsible_area_level": t.responsible_area.level if t.responsible_area else None,
+    }

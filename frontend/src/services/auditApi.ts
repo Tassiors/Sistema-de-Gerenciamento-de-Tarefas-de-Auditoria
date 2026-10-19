@@ -18,6 +18,8 @@ export interface AuditTaskItem {
   governance_nome: string | null;
   responsible_area_id: number | null;
   responsible_area_nome: string | null;
+  responsible_area_sigla?: string | null;
+  responsible_area_level?: string | null;
 }
 
 export interface GovernanceUnit {
@@ -30,9 +32,28 @@ export interface GovernanceUnit {
 export interface ResponsibleArea {
   id: number;
   nome: string;
+  sigla?: string;
+  level?: string;
+  parent_id?: number | null;
   governance_unit_id: number;
   governance_sigla?: string;
   governance_nome?: string;
+}
+
+export interface SystemManagerItem {
+  id: number;
+  username: string;
+  name: string;
+  email: string | null;
+  role: 'GESTOR' | 'ADMINISTRADOR' | 'SUPERINTENDENTE' | 'AUDITOR';
+  is_active: boolean;
+  responsible_area_id: number | null;
+  responsible_area_nome: string | null;
+  responsible_area_sigla?: string | null;
+  responsible_area_level?: string | null;
+  subordinates_count?: number;
+  extra_units: { id: number; nome: string; sigla?: string }[];
+  created_at?: string;
 }
 
 export interface DashboardMetrics {
@@ -78,6 +99,11 @@ export const auditApi = {
     return res.data;
   },
 
+  async getTaskDetail(taskId: string): Promise<AuditTaskItem> {
+    const res = await api.get<AuditTaskItem>(`/api/audit-tasks/${taskId}`);
+    return res.data;
+  },
+
   async getGovernanceUnits(): Promise<GovernanceUnit[]> {
     const res = await api.get<GovernanceUnit[]>('/api/governance-units');
     return res.data;
@@ -101,6 +127,49 @@ export const auditApi = {
     const res = await api.post('/api/audit-tasks/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return res.data;
+  },
+
+  // Matriz de Visibilidade e Gestão de Gestores
+  async listManagers(): Promise<SystemManagerItem[]> {
+    const res = await api.get<SystemManagerItem[]>('/api/admin/managers');
+    return res.data;
+  },
+
+  async createManager(data: {
+    username: string;
+    name: string;
+    email?: string;
+    role: string;
+    responsible_area_id?: number | null;
+    is_active?: boolean;
+    extra_unit_ids?: number[];
+  }): Promise<SystemManagerItem> {
+    const res = await api.post<SystemManagerItem>('/api/admin/managers', data);
+    return res.data;
+  },
+
+  async updateManager(
+    id: number,
+    data: {
+      name?: string;
+      email?: string;
+      role?: string;
+      responsible_area_id?: number | null;
+      is_active?: boolean;
+      extra_unit_ids?: number[];
+    }
+  ): Promise<SystemManagerItem> {
+    const res = await api.put<SystemManagerItem>(`/api/admin/managers/${id}`, data);
+    return res.data;
+  },
+
+  async deleteManager(id: number): Promise<void> {
+    await api.delete(`/api/admin/managers/${id}`);
+  },
+
+  async getSubordinates(areaId: number): Promise<{ area_id: number; subordinate_ids: number[]; count: number }> {
+    const res = await api.get(`/api/admin/managers/subordinates/${areaId}`);
     return res.data;
   },
 };

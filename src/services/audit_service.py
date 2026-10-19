@@ -216,23 +216,43 @@ async def get_audit_tasks(
     prazo: Optional[str] = None,
     unassigned: Optional[bool] = None,
     is_active: bool = True,
+    visible_area_ids: Optional[Set[int]] = None,
 ) -> Dict[str, Any]:
-    """Retorna listagem filtrada e paginada de tarefas com cálculo dinâmico de semáforos."""
+    """Retorna listagem filtrada e paginada de tarefas com cálculo dinâmico de semáforos e controle de visibilidade."""
     stmt = select(AuditTask).options(
         selectinload(AuditTask.governance_unit),
         selectinload(AuditTask.responsible_area),
     ).where(AuditTask.is_active == is_active)
 
+    # Controle de visibilidade hierárquica por gestor (None = irrestrito / admin / super / auditor)
+    if visible_area_ids is not None:
+        stmt = stmt.where(AuditTask.responsible_area_id.in_(list(visible_area_ids)))
+
     if sigla:
         stmt = stmt.join(AuditTask.governance_unit).where(GovernanceUnit.sigla == sigla.upper())
 
+    # Filtro de Situações (Lógica OR múltipla escolha com mapeamento Concluída/Atendida)
     if situation:
         if isinstance(situation, str):
-            situations_list = [s.strip() for s in situation.split(",") if s.strip()]
+            raw_situations = [s.strip() for s in situation.split(",") if s.strip()]
         else:
-            situations_list = list(situation)
-        if situations_list:
-            stmt = stmt.where(AuditTask.situation.in_(situations_list))
+            raw_situations = list(situation)
+        
+        mapped_situations = set()
+        for s in raw_situations:
+            if s.lower() in ("concluída", "concluida", "atendida"):
+                mapped_situations.add("Concluída")
+                mapped_situations.add("Atendida")
+            else:
+                mapped_situations.add(s)
+        
+        if mapped_situations:
+            stmt = stmt.where(
+                or_(
+                    AuditTask.situation.in_(list(mapped_situations)),
+                    AuditTask.state.in_(list(mapped_situations))
+                )
+            )
 
     if unassigned is True:
         stmt = stmt.where(AuditTask.responsible_area_id.is_(None))
@@ -251,11 +271,19 @@ async def get_audit_tasks(
     res = await session.execute(stmt.order_by(AuditTask.deadline.asc().nulls_last()))
     all_matched = res.scalars().all()
 
+    # Filtro de Prazos (Lógica OR múltipla escolha)
+    prazo_list = []
+    if prazo:
+        if isinstance(prazo, str):
+            prazo_list = [p.strip() for p in prazo.split(",") if p.strip()]
+        else:
+            prazo_list = list(prazo)
+
     today = date.today()
     items = []
     for t in all_matched:
         p_status, dias = calculate_prazo_status(t.deadline, today)
-        if prazo and p_status != prazo:
+        if prazo_list and p_status not in prazo_list:
             continue
 
         items.append({
@@ -276,6 +304,8 @@ async def get_audit_tasks(
             "governance_nome": t.governance_unit.nome if t.governance_unit else None,
             "responsible_area_id": t.responsible_area_id,
             "responsible_area_nome": t.responsible_area.nome if t.responsible_area else None,
+            "responsible_area_sigla": t.responsible_area.sigla if t.responsible_area else None,
+            "responsible_area_level": t.responsible_area.level if t.responsible_area else None,
         })
 
     total = len(items)
