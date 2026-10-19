@@ -7,6 +7,7 @@ prazos, áreas responsáveis e governança das gerências executivas do HC-UFPE.
 
 from datetime import datetime, date
 from sqlalchemy import (
+    Table,
     Column,
     Integer,
     String,
@@ -43,6 +44,15 @@ class GovernanceUnit(Base):
     audit_tasks = relationship("AuditTask", back_populates="governance_unit")
 
 
+task_responsible_areas = Table(
+    "task_responsible_areas",
+    Base.metadata,
+    Column("task_id", Integer, ForeignKey("audit_tasks.id", ondelete="CASCADE"), primary_key=True),
+    Column("responsible_area_id", Integer, ForeignKey("responsible_areas.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+)
+
+
 class ResponsibleArea(Base):
     """
     Representa uma Divisão, Setor ou Unidade Operacional responsável pela
@@ -66,6 +76,11 @@ class ResponsibleArea(Base):
     # Relacionamentos
     governance_unit = relationship("GovernanceUnit", back_populates="responsible_areas")
     audit_tasks = relationship("AuditTask", back_populates="responsible_area")
+    audit_tasks_multiple = relationship(
+        "AuditTask",
+        secondary="task_responsible_areas",
+        back_populates="responsible_areas",
+    )
     parent = relationship("ResponsibleArea", remote_side=[id], backref="children")
 
 
@@ -138,6 +153,12 @@ class AuditTask(Base):
     # Relacionamentos
     governance_unit = relationship("GovernanceUnit", back_populates="audit_tasks")
     responsible_area = relationship("ResponsibleArea", back_populates="audit_tasks")
+    responsible_areas = relationship(
+        "ResponsibleArea",
+        secondary="task_responsible_areas",
+        back_populates="audit_tasks_multiple",
+        lazy="selectin",
+    )
     import_batch = relationship("ImportBatch", back_populates="audit_tasks")
 
 

@@ -20,6 +20,7 @@ export interface AuditTaskItem {
   responsible_area_nome: string | null;
   responsible_area_sigla?: string | null;
   responsible_area_level?: string | null;
+  responsible_areas?: { id: number; nome: string; sigla?: string | null; level?: string | null }[];
 }
 
 export interface GovernanceUnit {
@@ -51,6 +52,7 @@ export interface SystemManagerItem {
   responsible_area_nome: string | null;
   responsible_area_sigla?: string | null;
   responsible_area_level?: string | null;
+  responsible_areas?: { id: number; nome: string; sigla?: string | null; level?: string | null }[];
   subordinates_count?: number;
   extra_units: { id: number; nome: string; sigla?: string }[];
   created_at?: string;
@@ -118,6 +120,12 @@ export const auditApi = {
   async assignResponsibleArea(taskId: string, responsibleAreaId: number | null): Promise<void> {
     await api.patch(`/api/audit-tasks/${taskId}/responsible-area`, {
       responsible_area_id: responsibleAreaId,
+    });
+  },
+
+  async assignResponsibleAreas(taskId: string, responsibleAreaIds: number[]): Promise<void> {
+    await api.patch(`/api/audit-tasks/${taskId}/responsible-areas`, {
+      responsible_area_ids: responsibleAreaIds,
     });
   },
 

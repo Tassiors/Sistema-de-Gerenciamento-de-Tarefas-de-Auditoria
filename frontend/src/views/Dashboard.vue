@@ -96,16 +96,39 @@
         </div>
       </div>
 
-      <!-- Total Ativas / Resumo -->
+      <!-- Tarefas Ativas em Acompanhamento -->
       <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex items-center justify-between border-l-4 border-l-gray-400">
         <div>
-          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total em Acompanhamento</p>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Tarefas Ativas em Acompanhamento</p>
           <p class="text-3xl md:text-4xl font-black text-gray-800 mt-1">
             {{ metrics?.kpis.total_ativas ?? 0 }}
           </p>
-          <p class="text-xs text-gray-500 mt-2">
-            Taxa de atendimento: <strong class="text-gray-900">{{ calcTaxaAtendimento }}%</strong>
-          </p>
+          <div class="flex items-center gap-1.5 text-xs text-gray-500 mt-2">
+            <span>Taxa de atendimento: <strong class="text-gray-900">{{ calcTaxaAtendimento }}%</strong></span>
+            
+            <!-- Popup Info Tooltip: Taxa de Atendimento -->
+            <div class="relative inline-block group">
+              <button
+                type="button"
+                class="text-gray-400 hover:text-blue-600 focus:outline-none cursor-pointer flex items-center"
+                title="Ver explicação da Taxa de Atendimento"
+              >
+                <InformationCircleIcon class="w-4 h-4" />
+              </button>
+              
+              <div class="hidden group-hover:block absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-2xl pointer-events-none">
+                <p class="font-bold text-amber-300 mb-1 flex items-center gap-1">
+                  <span>ℹ️ Taxa de Atendimento</span>
+                </p>
+                <p class="text-[11px] leading-relaxed text-gray-200">
+                  Mede a proporção de tarefas de auditoria implementadas e concluídas frente ao total de tarefas ativas monitoradas no hospital:
+                </p>
+                <div class="mt-2 p-1.5 bg-gray-800 rounded font-mono text-[10px] text-emerald-300 text-center">
+                  ({{ metrics?.kpis.total_atendidas ?? 0 }} Concluídas / {{ metrics?.kpis.total_ativas ?? 0 }} Ativas) × 100 = {{ calcTaxaAtendimento }}%
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="p-3 bg-gray-50 text-gray-600 rounded-2xl">
           <DocumentCheckIcon class="w-8 h-8" />
@@ -244,9 +267,9 @@
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-100">
         <div>
           <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
             <h3 class="font-extrabold text-base text-gray-900 tracking-tight">
-              Curva de Saneamento do Passivo de Auditoria (RNA)
+              Curva de Saneamento do Passivo de Auditoria
             </h3>
           </div>
           <p class="text-xs text-gray-500 mt-1">
@@ -254,8 +277,9 @@
           </p>
         </div>
 
-        <!-- KPI Badges Executivos de Performance -->
+        <!-- KPI Badges Executivos de Performance com Popups Explicativos -->
         <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Posição Hoje -->
           <div class="bg-indigo-50/70 border border-indigo-100 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
             <span class="text-[10px] uppercase font-bold text-indigo-600">Posição Hoje:</span>
             <span class="text-sm font-black text-indigo-900 flex items-center gap-1">
@@ -263,18 +287,46 @@
             </span>
           </div>
 
-          <div class="bg-emerald-50/70 border border-emerald-100 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+          <!-- Redução Total com Popup Informativo -->
+          <div class="bg-emerald-50/70 border border-emerald-100 px-3.5 py-1.5 rounded-xl flex items-center gap-2 relative group">
             <span class="text-[10px] uppercase font-bold text-emerald-700">Redução Total:</span>
             <span class="text-sm font-black text-emerald-700">
               -{{ rnaStats.pct }}%
             </span>
+            <button type="button" class="text-emerald-500 hover:text-emerald-800 cursor-pointer" title="Ver fórmula da Redução Total">
+              <InformationCircleIcon class="w-3.5 h-3.5" />
+            </button>
+            
+            <div class="hidden group-hover:block absolute z-30 bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-2xl pointer-events-none">
+              <p class="font-bold text-emerald-300 mb-1">Cálculo da Redução Total</p>
+              <p class="text-[11px] leading-relaxed text-gray-200">
+                Calcula o percentual de queda no passivo de recomendações não atendidas comparando o marco inicial (MAIO/24) com a posição da data atual:
+              </p>
+              <div class="mt-2 p-1.5 bg-gray-800 rounded font-mono text-[11px] text-amber-200 text-center">
+                (({{ rnaStats.initial }} - {{ rnaStats.current }}) / {{ rnaStats.initial }}) × 100 = {{ rnaStats.pct }}%
+              </div>
+            </div>
           </div>
 
-          <div class="bg-gray-50 border border-gray-200 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+          <!-- Média com Popup Informativo -->
+          <div class="bg-gray-50 border border-gray-200 px-3.5 py-1.5 rounded-xl flex items-center gap-2 relative group">
             <span class="text-[10px] uppercase font-bold text-gray-500">Média:</span>
             <span class="text-sm font-black text-gray-800">
               {{ rnaStats.avg }}
             </span>
+            <button type="button" class="text-gray-400 hover:text-gray-700 cursor-pointer" title="Ver fórmula da Média">
+              <InformationCircleIcon class="w-3.5 h-3.5" />
+            </button>
+            
+            <div class="hidden group-hover:block absolute z-30 bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-2xl pointer-events-none">
+              <p class="font-bold text-blue-300 mb-1">Cálculo da Média Histórica</p>
+              <p class="text-[11px] leading-relaxed text-gray-200">
+                Média aritmética de recomendações não atendidas apuradas ao longo dos {{ rnaStats.count }} meses analisados:
+              </p>
+              <div class="mt-2 p-1.5 bg-gray-800 rounded font-mono text-[11px] text-amber-200 text-center">
+                Soma Total ({{ rnaStats.sum }}) / {{ rnaStats.count }} meses = {{ rnaStats.avg }} recs/mês
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -327,20 +379,12 @@
               @mouseenter="hoveredRnaPoint = pt"
               @mouseleave="hoveredRnaPoint = null"
             >
-              <!-- Ponto Pulsante Especial para o Dia Atual (Último Ponto) -->
+              <!-- Ponto em Destaque para o Dia Atual (Último Ponto - Estático) -->
               <template v-if="idx === rnaPoints.length - 1">
                 <circle
                   :cx="pt.x"
                   :cy="pt.y"
-                  r="12"
-                  fill="#6366f1"
-                  fill-opacity="0.25"
-                  class="animate-ping"
-                />
-                <circle
-                  :cx="pt.x"
-                  :cy="pt.y"
-                  r="6.5"
+                  r="7"
                   fill="#4338ca"
                   stroke="#ffffff"
                   stroke-width="2.5"
@@ -560,21 +604,32 @@
                 </span>
               </td>
               <td class="py-3 px-3">
-                <div class="flex items-center justify-between gap-1">
+                <div class="flex items-center justify-between gap-1.5">
+                  <div v-if="task.responsible_areas && task.responsible_areas.length > 0" class="flex flex-wrap gap-1 min-w-0">
+                    <span
+                      v-for="area in task.responsible_areas"
+                      :key="area.id"
+                      class="px-1.5 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 rounded font-bold text-[10px] truncate max-w-[130px]"
+                      :title="area.nome"
+                    >
+                      {{ area.sigla || area.nome }}
+                    </span>
+                  </div>
                   <span
-                    v-if="task.responsible_area_nome"
+                    v-else-if="task.responsible_area_nome"
                     class="font-semibold text-gray-800 text-[11px] line-clamp-1"
                     :title="task.responsible_area_nome"
                   >
-                    {{ task.responsible_area_nome }}
+                    {{ task.responsible_area_sigla || task.responsible_area_nome }}
                   </span>
-                  <span v-else class="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span v-else class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                     Não atribuído
                   </span>
                   <button
+                    type="button"
                     @click="openAssignModal(task)"
-                    class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                    title="Atribuir ou alterar setor responsável"
+                    class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer shrink-0"
+                    title="Atribuir ou alterar área(s) responsável(is)"
                   >
                     <PencilSquareIcon class="w-4 h-4" />
                   </button>
@@ -614,65 +669,123 @@
       </div>
     </div>
 
-    <!-- Modal de Atribuição de Área Responsável -->
+    <!-- Modal de Atribuição de Múltiplas Áreas Responsáveis -->
     <div
       v-if="selectedTaskForAssign"
-      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs"
+      class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
       @click.self="closeAssignModal"
     >
-      <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-auto">
         <div class="flex items-center justify-between border-b pb-3">
-          <h3 class="text-base font-bold text-gray-900">
-            Atribuir Área Responsável
+          <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
+            <PencilSquareIcon class="w-5 h-5 text-blue-600" />
+            Atribuir Área(s) Responsável(is)
           </h3>
-          <button @click="closeAssignModal" class="text-gray-400 hover:text-gray-600 font-black">✕</button>
+          <button
+            type="button"
+            @click="closeAssignModal"
+            class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
 
         <div class="space-y-3 text-xs">
-          <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+          <!-- Resumo da Tarefa -->
+          <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-100">
             <p class="font-bold text-blue-900">Tarefa #{{ selectedTaskForAssign.task_id }}</p>
             <p class="text-gray-700 mt-1 line-clamp-2">{{ selectedTaskForAssign.title }}</p>
           </div>
 
-                <div>
-        <label class="block font-bold text-gray-700 mb-1">Buscar Unidade do Organograma HC-UFPE:</label>
-        <input
-          v-model="modalAreaSearch"
-          type="text"
-          placeholder="Filtrar unidade (ex: SETISD, Compras, Qualidade)..."
-          class="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 bg-gray-50 text-gray-800 focus:ring-2 focus:ring-blue-500"
-        />
-        <label class="block font-bold text-gray-700 mb-1">Selecione a Unidade Organizacional:</label>
-        <select
-          v-model="modalSelectedAreaId"
-          class="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
-        >
-          <option :value="null">-- Nenhuma (Remover Atribuio) --</option>
-          <optgroup v-for="gov in filteredGovUnitsForModal" :key="gov.id" :label="gov.sigla + ' - ' + gov.nome">
-            <option v-for="area in gov.areas" :key="area.id" :value="area.id">
-              {{ area.nome }}
-            </option>
-          </optgroup>
-        </select>
-      </div>
+          <!-- Áreas Atualmente Selecionadas (Chips com X) -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="font-bold text-gray-700">
+                Áreas Selecionadas ({{ modalSelectedAreaIds.length }}):
+              </label>
+              <button
+                v-if="modalSelectedAreaIds.length > 0"
+                type="button"
+                @click="modalSelectedAreaIds = []"
+                class="text-[10px] text-gray-500 hover:text-rose-600 font-semibold cursor-pointer"
+              >
+                Limpar seleção
+              </button>
+            </div>
+
+            <div v-if="modalSelectedAreaIds.length > 0" class="flex flex-wrap gap-1.5 p-2 bg-gray-50 rounded-xl border border-gray-200 max-h-24 overflow-y-auto">
+              <span
+                v-for="aid in modalSelectedAreaIds"
+                :key="aid"
+                class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-bold"
+              >
+                {{ getAreaLabelById(aid) }}
+                <button
+                  type="button"
+                  @click="toggleAreaSelection(aid)"
+                  class="text-blue-500 hover:text-blue-900 cursor-pointer"
+                  title="Remover"
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+            <p v-else class="text-xs text-gray-400 italic p-2 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+              Nenhuma área responsável selecionada. Marque abaixo as unidades encarregadas desta tarefa.
+            </p>
+          </div>
+
+          <!-- Busca e Lista de Unidades do Organograma -->
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Buscar e Selecionar Unidades do Organograma HC-UFPE:</label>
+            <input
+              v-model="modalAreaSearch"
+              type="text"
+              placeholder="Filtrar por nome ou sigla (ex: SETISD, SAD, Contratos)..."
+              class="w-full text-xs border border-gray-300 rounded-lg p-2.5 mb-2 bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+            />
+
+            <!-- Lista de Opções com Checkboxes -->
+            <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50/50 space-y-1">
+              <label
+                v-for="area in filteredAreasForAssignModal"
+                :key="area.id"
+                class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-white cursor-pointer select-none text-xs transition"
+                :class="{ 'bg-blue-50 font-bold text-blue-900': modalSelectedAreaIds.includes(area.id) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="modalSelectedAreaIds.includes(area.id)"
+                  @change="toggleAreaSelection(area.id)"
+                  class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                />
+                <span class="text-[10px] uppercase font-bold text-gray-400">[{{ area.level }}]</span>
+                <span class="truncate flex-1">{{ area.nome }}</span>
+                <span v-if="area.sigla" class="text-[10px] font-mono font-bold text-blue-600">{{ area.sigla }}</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-3 border-t">
           <button
+            type="button"
             @click="closeAssignModal"
-            class="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg"
+            class="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
           >
             Cancelar
           </button>
           <button
+            type="button"
             @click="saveAreaAssignment"
-            class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm"
+            class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
           >
-            Salvar Atribuição
+            Salvar Atribuição ({{ modalSelectedAreaIds.length }})
           </button>
         </div>
       </div>
     </div>
+
     <!-- Modal de Detalhes Completos da Tarefa -->
     <TaskDetailModal
       :isOpen="showTaskDetailModal"
@@ -694,6 +807,7 @@ import {
   MagnifyingGlassIcon,
   PencilSquareIcon,
   ArrowUpTrayIcon,
+  InformationCircleIcon,
 } from '@heroicons/vue/24/outline';
 import { auditApi, DashboardMetrics, AuditTaskItem, GovernanceUnit } from '../services/auditApi';
 import MultiSelectDropdown, { DropdownOption } from '../components/MultiSelectDropdown.vue';
@@ -752,23 +866,35 @@ function closeTaskDetail() {
   selectedTaskForDetail.value = null;
 }
 
-// Modal de Atribuição de Área Responsável
+// Modal de Atribuição de Múltiplas Áreas Responsáveis
 const selectedTaskForAssign = ref<AuditTaskItem | null>(null);
-const modalSelectedAreaId = ref<number | null>(null);
+const modalSelectedAreaIds = ref<number[]>([]);
 const modalAreaSearch = ref('');
+const allResponsibleAreas = ref<{ id: number; nome: string; sigla?: string; level?: string }[]>([]);
 
-const filteredGovUnitsForModal = computed(() => {
+const filteredAreasForAssignModal = computed(() => {
   if (!modalAreaSearch.value.trim()) {
-    return allGovUnits.value;
+    return allResponsibleAreas.value;
   }
   const term = modalAreaSearch.value.toLowerCase().trim();
-  return allGovUnits.value
-    .map(gov => ({
-      ...gov,
-      areas: gov.areas.filter(a => a.nome.toLowerCase().includes(term) || gov.sigla.toLowerCase().includes(term))
-    }))
-    .filter(gov => gov.areas.length > 0);
+  return allResponsibleAreas.value.filter(
+    a => a.nome.toLowerCase().includes(term) || (a.sigla && a.sigla.toLowerCase().includes(term))
+  );
 });
+
+function getAreaLabelById(id: number): string {
+  const area = allResponsibleAreas.value.find(a => a.id === id);
+  if (!area) return `#${id}`;
+  return area.sigla ? `${area.sigla} - ${area.nome}` : area.nome;
+}
+
+function toggleAreaSelection(id: number) {
+  if (modalSelectedAreaIds.value.includes(id)) {
+    modalSelectedAreaIds.value = modalSelectedAreaIds.value.filter(i => i !== id);
+  } else {
+    modalSelectedAreaIds.value.push(id);
+  }
+}
 
 function onFilterChange() {
   currentPage.value = 1;
@@ -877,25 +1003,32 @@ function nextPage() {
 
 function openAssignModal(task: AuditTaskItem) {
   selectedTaskForAssign.value = task;
-  modalSelectedAreaId.value = task.responsible_area_id;
+  modalAreaSearch.value = '';
+  if (task.responsible_areas && task.responsible_areas.length > 0) {
+    modalSelectedAreaIds.value = task.responsible_areas.map(a => a.id);
+  } else if (task.responsible_area_id) {
+    modalSelectedAreaIds.value = [task.responsible_area_id];
+  } else {
+    modalSelectedAreaIds.value = [];
+  }
 }
 
 function closeAssignModal() {
   selectedTaskForAssign.value = null;
-  modalSelectedAreaId.value = null;
+  modalSelectedAreaIds.value = [];
 }
 
 async function saveAreaAssignment() {
   if (!selectedTaskForAssign.value) return;
   try {
-    await auditApi.assignResponsibleArea(
+    await auditApi.assignResponsibleAreas(
       selectedTaskForAssign.value.task_id,
-      modalSelectedAreaId.value,
+      modalSelectedAreaIds.value,
     );
     closeAssignModal();
     await Promise.all([fetchMetrics(), fetchTasks()]);
   } catch (err) {
-    alert('Erro ao atualizar área responsável.');
+    alert('Erro ao atualizar área(s) responsável(is).');
   }
 }
 
@@ -907,14 +1040,15 @@ const hoveredRnaPoint = ref<any | null>(null);
 const rnaStats = computed(() => {
   const data = metrics.value?.rna_historico || [];
   if (data.length === 0) {
-    return { current: 0, initial: 0, pct: 0, avg: '0' };
+    return { current: 0, initial: 0, pct: 0, avg: '0', sum: 0, count: 0 };
   }
   const initial = data[0].quantidade;
   const current = data[data.length - 1].quantidade;
   const pct = initial > 0 ? Math.round(((initial - current) / initial) * 100) : 0;
-  const total = data.reduce((acc, d) => acc + d.quantidade, 0);
-  const avg = (total / data.length).toFixed(1);
-  return { current, initial, pct, avg };
+  const sum = data.reduce((acc, d) => acc + d.quantidade, 0);
+  const count = data.length;
+  const avg = (sum / count).toFixed(1);
+  return { current, initial, pct, avg, sum, count };
 });
 
 const rnaPoints = computed(() => {
@@ -980,7 +1114,12 @@ const rnaSplinePaths = computed(() => {
 
 onMounted(async () => {
   try {
-    allGovUnits.value = await auditApi.getGovernanceUnits();
+    const [govs, areas] = await Promise.all([
+      auditApi.getGovernanceUnits(),
+      auditApi.getResponsibleAreas(),
+    ]);
+    allGovUnits.value = govs;
+    allResponsibleAreas.value = areas;
   } catch (e) {
     console.error(e);
   }

@@ -5,7 +5,7 @@ Disponibiliza endpoints para importação de planilhas do e-CGU,
 atribuição de áreas responsáveis, listagem operacional, detalhes de tarefa e métricas analíticas.
 """
 
-from typing import Optional, Set
+from typing import Optional, Set, List
 from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -23,6 +23,7 @@ from ..services.audit_service import (
     list_governance_units,
     list_responsible_areas,
     assign_responsible_area,
+    assign_responsible_areas,
     get_audit_tasks,
     get_dashboard_metrics,
     calculate_prazo_status,
@@ -45,6 +46,10 @@ async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] 
 
 class AreaAssignmentPayload(BaseModel):
     responsible_area_id: Optional[int] = None
+
+
+class MultipleAreasAssignmentPayload(BaseModel):
+    responsible_area_ids: List[int] = []
 
 
 @router.post(
@@ -102,6 +107,26 @@ async def get_areas(
     session: AsyncSession = Depends(get_app_db_session),
 ):
     return await list_responsible_areas(session, governance_unit_id, sigla)
+
+
+@router.patch(
+    "/audit-tasks/{task_id}/responsible-areas",
+    summary="Atribuir Múltiplas Áreas Responsáveis à Tarefa",
+    description="Permite vincular uma ou mais divisões/setores encarregados pela tarefa de auditoria.",
+)
+async def set_task_areas(
+    task_id: str,
+    payload: MultipleAreasAssignmentPayload,
+    session: AsyncSession = Depends(get_app_db_session),
+):
+    try:
+        res = await assign_responsible_areas(session, task_id, payload.responsible_area_ids)
+        return {
+            "message": "Áreas Responsáveis atualizadas com sucesso",
+            "data": res,
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
 
 
 @router.patch(
@@ -185,6 +210,7 @@ async def get_task_detail(
         .options(
             selectinload(AuditTask.governance_unit),
             selectinload(AuditTask.responsible_area),
+            selectinload(AuditTask.responsible_areas),
         )
         .where(or_(AuditTask.task_id == task_id, AuditTask.id == (int(task_id) if task_id.isdigit() else -1)))
     )
@@ -195,6 +221,21 @@ async def get_task_detail(
 
     today = date.today()
     p_status, dias = calculate_prazo_status(t.deadline, today)
+
+    areas_list = [
+        {"id": a.id, "nome": a.nome, "sigla": a.sigla, "level": a.level}
+        for a in t.responsible_areas
+    ]
+    if not areas_list and t.responsible_area:
+        areas_list = [{
+            "id": t.responsible_area.id,
+            "nome": t.responsible_area.nome,
+            "sigla": t.responsible_area.sigla,
+            "level": t.responsible_area.level,
+        }]
+
+    siglas_str = ", ".join(filter(None, [a["sigla"] for a in areas_list])) or None
+    nomes_str = ", ".join([a["nome"] for a in areas_list]) if areas_list else None
 
     return {
         "id": t.id,
@@ -212,8 +253,9 @@ async def get_task_detail(
         "action_taken": t.action_taken,
         "governance_sigla": t.governance_unit.sigla if t.governance_unit else None,
         "governance_nome": t.governance_unit.nome if t.governance_unit else None,
-        "responsible_area_id": t.responsible_area_id,
-        "responsible_area_nome": t.responsible_area.nome if t.responsible_area else None,
-        "responsible_area_sigla": t.responsible_area.sigla if t.responsible_area else None,
-        "responsible_area_level": t.responsible_area.level if t.responsible_area else None,
+        "responsible_area_id": t.responsible_area_id or (areas_list[0]["id"] if areas_list else None),
+        "responsible_area_nome": nomes_str,
+        "responsible_area_sigla": siglas_str,
+        "responsible_area_level": t.responsible_area.level if t.responsible_area else (areas_list[0]["level"] if areas_list else None),
+        "responsible_areas": areas_list,
     }

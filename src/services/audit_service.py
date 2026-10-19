@@ -170,6 +170,9 @@ async def list_responsible_areas(
         {
             "id": a.id,
             "nome": a.nome,
+            "sigla": a.sigla,
+            "level": a.level,
+            "parent_id": a.parent_id,
             "governance_unit_id": a.governance_unit_id,
             "governance_sigla": a.governance_unit.sigla if a.governance_unit else None,
             "governance_nome": a.governance_unit.nome if a.governance_unit else None,
@@ -178,32 +181,56 @@ async def list_responsible_areas(
     ]
 
 
-async def assign_responsible_area(
+async def assign_responsible_areas(
     session: AsyncSession,
     task_id: str,
-    responsible_area_id: Optional[int],
+    responsible_area_ids: List[int],
 ) -> Dict[str, Any]:
-    """Atribui ou altera a Área Responsável de uma tarefa de auditoria."""
-    stmt = select(AuditTask).where(AuditTask.task_id == task_id)
+    """Atribui ou altera múltiplas Áreas Responsáveis de uma tarefa de auditoria."""
+    stmt = (
+        select(AuditTask)
+        .options(
+            selectinload(AuditTask.responsible_areas),
+            selectinload(AuditTask.governance_unit),
+        )
+        .where(AuditTask.task_id == task_id)
+    )
     res = await session.execute(stmt)
     task = res.scalar_one_or_none()
     if not task:
         raise ValueError(f"Tarefa de auditoria {task_id} não encontrada.")
 
-    task.responsible_area_id = responsible_area_id
-    if responsible_area_id:
-        area_res = await session.execute(select(ResponsibleArea).where(ResponsibleArea.id == responsible_area_id))
-        area = area_res.scalar_one_or_none()
-        if area:
-            task.governance_unit_id = area.governance_unit_id
+    if responsible_area_ids:
+        area_res = await session.execute(
+            select(ResponsibleArea).where(ResponsibleArea.id.in_(responsible_area_ids))
+        )
+        areas = list(area_res.scalars().all())
+        task.responsible_areas = areas
+        task.responsible_area_id = areas[0].id
+        task.governance_unit_id = areas[0].governance_unit_id
+    else:
+        task.responsible_areas = []
+        task.responsible_area_id = None
 
     await session.commit()
     await session.refresh(task)
     return {
         "task_id": task.task_id,
-        "responsible_area_id": task.responsible_area_id,
-        "governance_unit_id": task.governance_unit_id,
+        "responsible_area_ids": [a.id for a in task.responsible_areas],
+        "responsible_areas": [
+            {"id": a.id, "nome": a.nome, "sigla": a.sigla, "level": a.level}
+            for a in task.responsible_areas
+        ],
     }
+
+
+async def assign_responsible_area(
+    session: AsyncSession,
+    task_id: str,
+    responsible_area_id: Optional[int],
+) -> Dict[str, Any]:
+    ids = [responsible_area_id] if responsible_area_id else []
+    return await assign_responsible_areas(session, task_id, ids)
 
 
 async def get_audit_tasks(
@@ -222,11 +249,17 @@ async def get_audit_tasks(
     stmt = select(AuditTask).options(
         selectinload(AuditTask.governance_unit),
         selectinload(AuditTask.responsible_area),
+        selectinload(AuditTask.responsible_areas),
     ).where(AuditTask.is_active == is_active)
 
     # Controle de visibilidade hierárquica por gestor (None = irrestrito / admin / super / auditor)
     if visible_area_ids is not None:
-        stmt = stmt.where(AuditTask.responsible_area_id.in_(list(visible_area_ids)))
+        stmt = stmt.where(
+            or_(
+                AuditTask.responsible_area_id.in_(list(visible_area_ids)),
+                AuditTask.responsible_areas.any(ResponsibleArea.id.in_(list(visible_area_ids)))
+            )
+        )
 
     if sigla:
         stmt = stmt.join(AuditTask.governance_unit).where(GovernanceUnit.sigla == sigla.upper())
@@ -255,7 +288,12 @@ async def get_audit_tasks(
             )
 
     if unassigned is True:
-        stmt = stmt.where(AuditTask.responsible_area_id.is_(None))
+        stmt = stmt.where(
+            and_(
+                AuditTask.responsible_area_id.is_(None),
+                ~AuditTask.responsible_areas.any()
+            )
+        )
 
     if search:
         term = f"%{search.strip()}%"
@@ -286,6 +324,26 @@ async def get_audit_tasks(
         if prazo_list and p_status not in prazo_list:
             continue
 
+        areas_list = [
+            {
+                "id": a.id,
+                "nome": a.nome,
+                "sigla": a.sigla,
+                "level": a.level,
+            }
+            for a in t.responsible_areas
+        ]
+        if not areas_list and t.responsible_area:
+            areas_list = [{
+                "id": t.responsible_area.id,
+                "nome": t.responsible_area.nome,
+                "sigla": t.responsible_area.sigla,
+                "level": t.responsible_area.level,
+            }]
+
+        siglas_str = ", ".join(filter(None, [a["sigla"] for a in areas_list])) or None
+        nomes_str = ", ".join([a["nome"] for a in areas_list]) if areas_list else None
+
         items.append({
             "id": t.id,
             "task_id": t.task_id,
@@ -302,10 +360,11 @@ async def get_audit_tasks(
             "action_taken": t.action_taken,
             "governance_sigla": t.governance_unit.sigla if t.governance_unit else None,
             "governance_nome": t.governance_unit.nome if t.governance_unit else None,
-            "responsible_area_id": t.responsible_area_id,
-            "responsible_area_nome": t.responsible_area.nome if t.responsible_area else None,
-            "responsible_area_sigla": t.responsible_area.sigla if t.responsible_area else None,
-            "responsible_area_level": t.responsible_area.level if t.responsible_area else None,
+            "responsible_area_id": t.responsible_area_id or (areas_list[0]["id"] if areas_list else None),
+            "responsible_area_nome": nomes_str,
+            "responsible_area_sigla": siglas_str,
+            "responsible_area_level": t.responsible_area.level if t.responsible_area else (areas_list[0]["level"] if areas_list else None),
+            "responsible_areas": areas_list,
         })
 
     total = len(items)

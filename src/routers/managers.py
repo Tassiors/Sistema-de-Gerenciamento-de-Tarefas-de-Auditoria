@@ -90,6 +90,29 @@ async def remove_manager(
     return {"message": "Gestor removido com sucesso."}
 
 
+
+@router.get("/subordinates/{area_id}", summary="Visualizar Áreas Subordinadas por ID da Área")
+async def get_area_subordinates_by_area_id(
+    area_id: int,
+    session: AsyncSession = Depends(get_app_db_session),
+    current_user: dict = Depends(require_admin),
+):
+    sub_ids = await get_subordinate_area_ids(session, area_id)
+    stmt = select(ResponsibleArea).where(ResponsibleArea.id.in_(sub_ids)).order_by(ResponsibleArea.level, ResponsibleArea.nome)
+    res = await session.execute(stmt)
+    areas = res.scalars().all()
+
+    return {
+        "area_id": area_id,
+        "count": len(sub_ids),
+        "subordinate_ids": list(sub_ids),
+        "items": [
+            {"id": a.id, "nome": a.nome, "sigla": a.sigla, "level": a.level, "parent_id": a.parent_id}
+            for a in areas
+        ],
+    }
+
+
 @router.get("/{manager_id}/subordinates", summary="Visualizar Áreas Subordinadas de um Gestor")
 async def get_manager_subordinates(
     manager_id: int,

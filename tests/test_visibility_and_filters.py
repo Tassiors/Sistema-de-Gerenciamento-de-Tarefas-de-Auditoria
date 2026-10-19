@@ -52,3 +52,45 @@ def test_managers_api_crud(client):
     managers = res_list.json()
     assert isinstance(managers, list)
     assert len(managers) >= 1
+
+
+def test_assign_multiple_responsible_areas(client):
+    """Valida atribuicao de multiplas areas responsaveis para uma tarefa."""
+    # Login admin
+    login_res = client.post("/api/login", data={"username": "tassio.silva", "password": "123456"})
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Obter areas disponiveis
+    areas_res = client.get("/api/responsible-areas", headers=headers)
+    assert areas_res.status_code == 200
+    areas = areas_res.json()
+    assert len(areas) >= 2
+    area_ids = [areas[0]["id"], areas[1]["id"]]
+
+    # Obter primeira tarefa
+    res = client.get("/api/audit-tasks?page=1&page_size=1", headers=headers)
+    assert res.status_code == 200
+    items = res.json()["items"]
+    if items:
+        task_id = items[0]["task_id"]
+        # Atribuir duas areas
+        patch_res = client.patch(
+            f"/api/audit-tasks/{task_id}/responsible-areas",
+            json={"responsible_area_ids": area_ids},
+            headers=headers
+        )
+        assert patch_res.status_code == 200
+        patch_data = patch_res.json()
+        assert "data" in patch_data
+        assert len(patch_data["data"]["responsible_areas"]) == 2
+
+        # Consultar detalhe da tarefa
+        detail_res = client.get(f"/api/audit-tasks/{task_id}", headers=headers)
+        assert detail_res.status_code == 200
+        detail = detail_res.json()
+        assert len(detail["responsible_areas"]) == 2
+        assigned_ids = [a["id"] for a in detail["responsible_areas"]]
+        assert area_ids[0] in assigned_ids
+        assert area_ids[1] in assigned_ids

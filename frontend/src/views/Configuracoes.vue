@@ -54,12 +54,15 @@
               </p>
             </div>
 
-            <Button variant="primary" @click="openAddManagerModal">
-              <template #icon>
-                <UserPlusIcon class="h-4 w-4" />
-              </template>
+            <!-- Botão Cadastrar Novo Gestor -->
+            <button
+              type="button"
+              @click="openAddManagerModal"
+              class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <UserPlusIcon class="h-4 w-4" />
               Cadastrar Novo Gestor
-            </Button>
+            </button>
           </div>
 
           <!-- Barra de Busca de Gestores -->
@@ -224,6 +227,7 @@
     <!-- Modal de Cadastro / Edição de Gestor & Matriz de Visibilidade -->
     <Modal
       :isOpen="showManagerModal"
+      :show="showManagerModal"
       :title="editingManagerId ? 'Editar Gestor & Matriz de Visibilidade' : 'Cadastrar Novo Gestor Autorizado'"
       @close="closeManagerModal"
     >
@@ -241,15 +245,15 @@
               placeholder="ex: tassio.silva ou joao.silva"
               class="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
             />
-            <Button
+            <button
               v-if="!editingManagerId"
               type="button"
-              variant="secondary"
               @click="searchAD"
-              :loading="isSearchingAD"
+              :disabled="isSearchingAD"
+              class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg font-bold text-gray-700 whitespace-nowrap cursor-pointer transition"
             >
-              Consultar AD
-            </Button>
+              {{ isSearchingAD ? 'Consultando...' : 'Consultar AD' }}
+            </button>
           </div>
           <p v-if="adSearchFeedback" class="text-[11px] font-semibold mt-1" :class="adSearchSuccess ? 'text-emerald-600' : 'text-rose-600'">
             {{ adSearchFeedback }}
@@ -297,54 +301,59 @@
         </div>
 
         <!-- 4. Unidade Principal (Organograma HC-UFPE) -->
-        <div>
-          <label class="block font-bold text-gray-700 mb-1">
-            Unidade Organizacional Principal (Organograma)
-          </label>
-          <div class="relative">
-            <select
-              v-model="managerForm.responsible_area_id"
-              @change="onPrimaryAreaChanged"
-              class="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option :value="null">Nenhuma (Acesso Global - Padrão para Administradores / Superintendência)</option>
-              <optgroup
-                v-for="group in groupedAreas"
-                :key="group.sigla"
-                :label="group.nome + ' (' + group.sigla + ')'"
-              >
-                <option
-                  v-for="area in group.areas"
-                  :key="area.id"
-                  :value="area.id"
-                >
-                  [{{ area.level }}] {{ area.nome }} {{ area.sigla ? '(' + area.sigla + ')' : '' }}
-                </option>
-              </optgroup>
-            </select>
+        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-200/60 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block font-bold text-blue-950 text-xs">
+              Unidade Organizacional Principal (Organograma HC-UFPE) <span class="text-rose-500">*</span>
+            </label>
+            <span class="text-[10px] text-blue-700 font-bold uppercase">Lotação e Hierarquia</span>
           </div>
-        </div>
-
-        <!-- Previsão Dinâmica da Hierarquia de Subordinação -->
-        <div
-          v-if="subordinatesPreview.length > 0"
-          class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 space-y-1.5"
-        >
-          <div class="flex items-center gap-1.5 font-bold text-emerald-900 text-xs">
-            <CheckCircleIcon class="w-4 h-4 text-emerald-600" />
-            <span>Herança Automática: {{ subordinatesPreview.length }} unidades subordinadas incluídas</span>
-          </div>
-          <p class="text-[11px] text-emerald-800 leading-relaxed">
-            Pelo organograma (Gerência &rarr; Divisão &rarr; Setor &rarr; Unidade), este gestor visualizará automaticamente todas as tarefas destas áreas:
+          <p class="text-[11px] text-gray-600 leading-tight">
+            Selecione a unidade responsável deste gestor. Todas as tarefas pertencentes a ela e às suas unidades subordinadas serão visualizadas automaticamente por ele.
           </p>
-          <div class="flex flex-wrap gap-1 pt-1 max-h-24 overflow-y-auto">
-            <span
-              v-for="sub in subordinatesPreview"
-              :key="sub.id"
-              class="px-2 py-0.5 bg-white text-emerald-800 border border-emerald-200 rounded text-[10px] font-medium"
+
+          <select
+            v-model="managerForm.responsible_area_id"
+            @change="onPrimaryAreaChanged"
+            class="w-full text-xs border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-2xs"
+          >
+            <option :value="null">-- Selecione a Unidade Principal do Gestor --</option>
+            <optgroup
+              v-for="group in groupedAreas"
+              :key="group.sigla"
+              :label="group.nome + ' (' + group.sigla + ')'"
             >
-              {{ sub.nome }}
-            </span>
+              <option
+                v-for="area in group.areas"
+                :key="area.id"
+                :value="area.id"
+              >
+                [{{ area.level }}] {{ area.nome }} {{ area.sigla ? '(' + area.sigla + ')' : '' }}
+              </option>
+            </optgroup>
+          </select>
+
+          <!-- Previsão Dinâmica da Hierarquia de Subordinação -->
+          <div
+            v-if="subordinatesPreview.length > 0"
+            class="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-1 mt-2"
+          >
+            <div class="flex items-center gap-1.5 font-bold text-emerald-900 text-xs">
+              <CheckCircleIcon class="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Hierarquia Automática: {{ subordinatesPreview.length }} unidades subordinadas herdadas</span>
+            </div>
+            <p class="text-[10px] text-emerald-800">
+              Pela regra do organograma (Gerência &rarr; Divisão &rarr; Setor &rarr; Unidade), o gestor verá tarefas destas áreas:
+            </p>
+            <div class="flex flex-wrap gap-1 pt-1 max-h-24 overflow-y-auto">
+              <span
+                v-for="sub in subordinatesPreview"
+                :key="sub.id"
+                class="px-2 py-0.5 bg-white text-emerald-800 border border-emerald-200 rounded text-[10px] font-semibold"
+              >
+                {{ sub.sigla ? sub.sigla + ' - ' : '' }}{{ sub.nome }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -364,7 +373,7 @@
           <input
             v-model="extraUnitSearch"
             type="text"
-            placeholder="Filtrar unidades extras..."
+            placeholder="Filtrar por nome ou sigla (ex: SETISD, SAD, Contratos)..."
             class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
 
@@ -380,11 +389,11 @@
                 type="checkbox"
                 :value="area.id"
                 v-model="managerForm.extra_unit_ids"
-                class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
               />
               <span class="text-[10px] uppercase font-bold text-gray-400">[{{ area.level }}]</span>
               <span class="truncate flex-1">{{ area.nome }}</span>
-              <span v-if="area.sigla" class="text-[10px] font-mono text-gray-400">{{ area.sigla }}</span>
+              <span v-if="area.sigla" class="text-[10px] font-mono font-bold text-blue-600">{{ area.sigla }}</span>
             </label>
           </div>
         </div>
@@ -405,12 +414,21 @@
 
       <template #footer>
         <div class="flex justify-end space-x-2">
-          <Button variant="secondary" @click="closeManagerModal">
+          <button
+            type="button"
+            @click="closeManagerModal"
+            class="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+          >
             Cancelar
-          </Button>
-          <Button variant="primary" @click="saveManager" :loading="isSavingManager">
-            Salvar Gestor
-          </Button>
+          </button>
+          <button
+            type="button"
+            @click="saveManager"
+            :disabled="isSavingManager"
+            class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
+          >
+            {{ isSavingManager ? 'Salvando...' : 'Salvar Gestor' }}
+          </button>
         </div>
       </template>
     </Modal>
@@ -421,7 +439,6 @@
 import { ref, computed, onMounted } from 'vue';
 import Card from '../components/Card.vue';
 import Modal from '../components/Modal.vue';
-import Button from '../components/Button.vue';
 import { useAuthStore } from '../stores/auth';
 import { auditApi, SystemManagerItem, ResponsibleArea } from '../services/auditApi';
 import api from '../services/api';
@@ -479,7 +496,7 @@ const filteredManagers = computed(() => {
 
 const groupedAreas = computed(() => {
   const groups: Record<string, { sigla: string; nome: string; areas: ResponsibleArea[] }> = {
-    SUP: { sigla: 'SUP', nome: 'Superintendência', areas: [] },
+    SUP: { sigla: 'SUP', nome: 'Superintendência & Órgãos Vinculados', areas: [] },
     GAD: { sigla: 'GAD', nome: 'Gerência Administrativa', areas: [] },
     GAS: { sigla: 'GAS', nome: 'Gerência de Atenção à Saúde', areas: [] },
     GEP: { sigla: 'GEP', nome: 'Gerência de Ensino e Pesquisa', areas: [] },
@@ -489,6 +506,8 @@ const groupedAreas = computed(() => {
     const s = a.governance_sigla || 'SUP';
     if (groups[s]) {
       groups[s].areas.push(a);
+    } else {
+      groups['SUP'].areas.push(a);
     }
   }
   return Object.values(groups);
@@ -620,6 +639,11 @@ async function searchAD() {
 async function saveManager() {
   if (!managerForm.value.username.trim() || !managerForm.value.name.trim()) {
     alert('Preencha os campos obrigatórios (Login AD e Nome Completo).');
+    return;
+  }
+
+  if (managerForm.value.role === 'GESTOR' && !managerForm.value.responsible_area_id) {
+    alert('Atenção: Selecione a Unidade Principal do Gestor para definir sua hierarquia e responsabilidade sobre as tarefas.');
     return;
   }
 
