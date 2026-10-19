@@ -37,33 +37,22 @@
         <nav class="space-y-2">
           <router-link 
             to="/" 
-            :title="isCollapsed ? 'Início' : ''"
+            :title="isCollapsed ? 'Dashboard e-CGU' : ''"
             :class="[isCollapsed ? 'justify-center px-2' : 'px-4']"
             class="flex items-center space-x-3 py-2.5 rounded transition duration-200 hover:bg-paper-active-link hover:text-white"
           >
-            <HomeIcon class="h-6 w-6 shrink-0"/>
-            <span v-if="!isCollapsed" class="truncate">Início</span>
+            <ChartBarIcon class="h-6 w-6 shrink-0"/>
+            <span v-if="!isCollapsed" class="truncate">Dashboard e-CGU</span>
           </router-link>
 
           <router-link 
-            to="/componentes" 
-            :title="isCollapsed ? 'Componentes' : ''"
+            to="/importar" 
+            :title="isCollapsed ? 'Importar Planilha' : ''"
             :class="[isCollapsed ? 'justify-center px-2' : 'px-4']"
             class="flex items-center space-x-3 py-2.5 rounded transition duration-200 hover:bg-paper-active-link hover:text-white"
           >
-            <CubeIcon class="h-6 w-6 shrink-0" />
-            <span v-if="!isCollapsed" class="truncate">Componentes</span>
-          </router-link>
-
-          <router-link 
-            v-if="authStore.isAuthenticated" 
-            to="/exemplo" 
-            :title="isCollapsed ? 'Exemplo' : ''"
-            :class="[isCollapsed ? 'justify-center px-2' : 'px-4']"
-            class="flex items-center space-x-3 py-2.5 rounded transition duration-200 hover:bg-paper-active-link hover:text-white"
-          >
-            <DocumentTextIcon class="h-6 w-6 shrink-0" />
-            <span v-if="!isCollapsed" class="truncate">Exemplo</span>
+            <ArrowUpTrayIcon class="h-6 w-6 shrink-0" />
+            <span v-if="!isCollapsed" class="truncate">Importar e-CGU</span>
           </router-link>
           
           <router-link 
@@ -120,9 +109,8 @@
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-  HomeIcon,
-  CubeIcon,
-  DocumentTextIcon,
+  ChartBarIcon,
+  ArrowUpTrayIcon,
   Cog6ToothIcon,
   CubeTransparentIcon,
   Bars3Icon,
